@@ -8,11 +8,12 @@ import json
 import logging
 import structlog
 from asyncio import Queue, CancelledError
+
+from googletrans import Translator
 from sanic import Blueprint, response
 from sanic.request import Request
 from sanic.response import HTTPResponse, ResponseStream
 from typing import Text, Dict, Any, Optional, Callable, Awaitable, NoReturn, Union
-from transformers import MarianMTModel, MarianTokenizer
 
 import rasa.utils.endpoints
 from rasa.core.channels.channel import (
@@ -144,38 +145,10 @@ class RestInput(InputChannel):
         async def health(request: Request) -> HTTPResponse:
             return response.json({"status": "ok"})
 
+        translator = Translator()
 
-        model_en_bs_name = "Helsinki-NLP/opus-mt-tc-base-en-sh"  # English to Bosnian translation model
-        model_en_bs = MarianMTModel.from_pretrained(model_en_bs_name)
-        tokenizer_en_bs = MarianTokenizer.from_pretrained(model_en_bs_name)
-
-        model_en_ar_name = "Helsinki-NLP/opus-mt-tc-big-en-ar"  # English to Arabic translation model
-        model_en_ar = MarianMTModel.from_pretrained(model_en_ar_name)
-        tokenizer_en_ar = MarianTokenizer.from_pretrained(model_en_ar_name)
-
-        model_en_tr_name = "Helsinki-NLP/opus-tatoeba-en-tr"  # English to Turkish translation model
-        model_en_tr = MarianMTModel.from_pretrained(model_en_tr_name)
-        tokenizer_en_tr = MarianTokenizer.from_pretrained(model_en_tr_name)
-
-        def translate_text(text, target_language):
-
-            if target_language == 'bs':
-                model = model_en_bs
-                tokenizer = tokenizer_en_bs
-            if target_language == 'ar':
-                model = model_en_ar
-                tokenizer = tokenizer_en_ar
-            if target_language == 'tr':
-                model = model_en_tr
-                tokenizer = tokenizer_en_tr
-
-            # Tokenize input text
-            inputs = tokenizer(text, return_tensors="pt", padding=True)
-
-            # Translate text
-            outputs = model.generate(**inputs, max_length=100, num_beams=4, early_stopping=True)
-            translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
+        def translate_text(text: str, target_language: str) -> str:
+            translated_text = translator.translate(text, dest=target_language).text
             return translated_text
 
         @custom_webhook.route("/webhook", methods=["POST"])
@@ -218,8 +191,9 @@ class RestInput(InputChannel):
                         "rest.message.received.failure", text=copy.deepcopy(text)
                     )
 
-
-                return response.json({**collector.messages[0], "text": translate_text(collector.messages[0].get('text', None), target_language=language), "language": language})
+                return response.json({**collector.messages[0],
+                                      "text": translate_text(collector.messages[0].get('text', None),
+                                                             target_language=language), "language": language})
 
         return custom_webhook
 
