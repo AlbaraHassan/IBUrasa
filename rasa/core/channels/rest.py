@@ -8,12 +8,11 @@ import json
 import logging
 import structlog
 from asyncio import Queue, CancelledError
-
-from googletrans import Translator
 from sanic import Blueprint, response
 from sanic.request import Request
 from sanic.response import HTTPResponse, ResponseStream
 from typing import Text, Dict, Any, Optional, Callable, Awaitable, NoReturn, Union
+from googletrans import Translator
 
 import rasa.utils.endpoints
 from rasa.core.channels.channel import (
@@ -145,11 +144,12 @@ class RestInput(InputChannel):
         async def health(request: Request) -> HTTPResponse:
             return response.json({"status": "ok"})
 
-        translator = Translator()
 
-        def translate_text(text: str, target_language: str) -> str:
-            translated_text = translator.translate(text, dest=target_language).text
-            return translated_text
+
+        def translate_text(text, target_language='en'):
+            translator = Translator()
+            translation = translator.translate(text, dest=target_language)
+            return translation.text
 
         @custom_webhook.route("/webhook", methods=["POST"])
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
@@ -191,9 +191,8 @@ class RestInput(InputChannel):
                         "rest.message.received.failure", text=copy.deepcopy(text)
                     )
 
-                return response.json({**collector.messages[0],
-                                      "text": translate_text(collector.messages[0].get('text', None),
-                                                             target_language=language), "language": language})
+
+                return response.json({**collector.messages[0], "text": translate_text(collector.messages[0].get('text', None), target_language=language), "language": language})
 
         return custom_webhook
 
