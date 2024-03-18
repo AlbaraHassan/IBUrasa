@@ -154,7 +154,7 @@ class RestInput(InputChannel):
         @custom_webhook.route("/webhook", methods=["POST"])
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
             sender_id = await self._extract_sender(request)
-            text = self._extract_message(request)
+            text = translate_text(self._extract_message(request), target_language='en')
             language = self._extract_language(request)
             should_use_stream = rasa.utils.endpoints.bool_arg(
                 request, "stream", default=False
