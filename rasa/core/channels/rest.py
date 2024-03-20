@@ -13,6 +13,7 @@ from sanic.request import Request
 from sanic.response import HTTPResponse, ResponseStream
 from typing import Text, Dict, Any, Optional, Callable, Awaitable, NoReturn, Union
 from googletrans import Translator
+from better_profanity import profanity
 
 import rasa.utils.endpoints
 from rasa.core.channels.channel import (
@@ -151,6 +152,10 @@ class RestInput(InputChannel):
             translation = translator.translate(text, dest=target_language)
             return translation.text
 
+        def check_profanity(text):
+            return True if profanity.contains_profanity(text) else False
+
+
         @custom_webhook.route("/webhook", methods=["POST"])
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
             sender_id = await self._extract_sender(request)
@@ -192,7 +197,7 @@ class RestInput(InputChannel):
                     )
 
 
-                return response.json({**collector.messages[0], "text": translate_text(collector.messages[0].get('text', None), target_language=language), "language": language})
+                return response.json({**collector.messages[0], "text": translate_text(collector.messages[0].get('text', None) if not check_profanity(text) else "Please refrain from using inappropriate language.", target_language=language), "language": language})
 
         return custom_webhook
 
