@@ -14,7 +14,8 @@ from sanic.response import HTTPResponse, ResponseStream
 from typing import Text, Dict, Any, Optional, Callable, Awaitable, NoReturn, Union
 from googletrans import Translator
 from better_profanity import profanity
-
+import requests
+from langdetect import detect
 import rasa.utils.endpoints
 from rasa.core.channels.channel import (
     InputChannel,
@@ -145,22 +146,22 @@ class RestInput(InputChannel):
         async def health(request: Request) -> HTTPResponse:
             return response.json({"status": "ok"})
 
-
-
-        def translate_text(text, target_language='en'):
-            translator = Translator()
-            translation = translator.translate(text, dest=target_language)
-            return translation.text
+        def translate_text(text, src_language, target_language='en'):
+            response = requests.get(
+                f"https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl={src_language}&tl={target_language}&q={text}")
+            data = response.json()
+            translated_text = data[0][0][0] if data and data[0] and data[0][0] else ''
+            logger.info(translated_text)
+            return translated_text
 
         def check_profanity(text):
             return True if profanity.contains_profanity(text) else False
 
-
         @custom_webhook.route("/webhook", methods=["POST"])
         async def receive(request: Request) -> Union[ResponseStream, HTTPResponse]:
             sender_id = await self._extract_sender(request)
-            text = translate_text(self._extract_message(request), target_language='en')
             language = self._extract_language(request)
+            text = translate_text(self._extract_message(request), src_language=language, target_language='en')
             should_use_stream = rasa.utils.endpoints.bool_arg(
                 request, "stream", default=False
             )
@@ -196,8 +197,10 @@ class RestInput(InputChannel):
                         "rest.message.received.failure", text=copy.deepcopy(text)
                     )
 
-
-                return response.json({**collector.messages[0], "text": translate_text(collector.messages[0].get('text', None) if not check_profanity(text) else "Please refrain from using inappropriate language.", target_language=language), "language": language})
+                return response.json({**collector.messages[0], "text": translate_text(
+                    collector.messages[0].get('text', None) if not check_profanity(
+                        text) else "Please refrain from using inappropriate language.", src_language='en',target_language=language),
+                    "language": language})
 
         return custom_webhook
 
