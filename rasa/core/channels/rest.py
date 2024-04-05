@@ -147,12 +147,17 @@ class RestInput(InputChannel):
             return response.json({"status": "ok"})
 
         def translate_text(text, src_language, target_language='en'):
+            # Make the request to Google Translate API
             response = requests.get(
-                f"https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl={src_language}&tl={target_language}&q={text}")
+                f"https://translate.googleapis.com/translate_a/t?client=gtx&dt=t&sl={src_language}&tl={target_language}&q={text}"
+            )
             data = response.json()
-            translated_text = data[0][0][0] if data and data[0] and data[0][0] else ''
+
+            translated_text = ''.join(item[0] if item else '' for item in data[0])
+            logger.info(text)
             logger.info(translated_text)
             return translated_text
+
 
         def check_profanity(text):
             return True if profanity.contains_profanity(text) else False
