@@ -147,7 +147,6 @@ class RestInput(InputChannel):
             return response.json({"status": "ok"})
 
         def translate_text(text, src_language, target_language='en'):
-            # Make the request to Google Translate API
             response = requests.get(
                 f"https://translate.googleapis.com/translate_a/t?client=gtx&dt=t&sl={src_language}&tl={target_language}&q={text}"
             )
